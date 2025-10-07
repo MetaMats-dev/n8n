@@ -1,9 +1,15 @@
 {
-  "name": "Content Pipeline: Notion → OpenAI → Ghost",
+  "name": "Complete Content Pipeline: Notion → OpenAI → Ghost",
   "nodes": [
     {
       "parameters": {
-        "databaseId": "={{ $env.NOTION_CONTENT_DB_ID }}",
+        "databaseId": {
+          "__rl": true,
+          "value": "285799f2-efe7-80e4-b704-ddb99840cedc",
+          "mode": "list",
+          "cachedResultName": "Content Pipeline",
+          "cachedResultUrl": "https://www.notion.so/285799f2efe780e4b704ddb99840cedc"
+        },
         "triggerOn": "pageUpdated",
         "additionalFields": {
           "filter": {
@@ -18,8 +24,14 @@
       "name": "Notion Trigger (In Progress)",
       "position": [200, 300],
       "type": "n8n-nodes-base.notionTrigger",
-      "typeVersion": 2,
+      "typeVersion": 1,
       "webhookId": "notion-in-progress-webhook",
+      "credentials": {
+        "notionApi": {
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
+        }
+      },
       "notes": "Triggers when Notion page status changes to 'In progress'"
     },
     {
@@ -36,15 +48,15 @@
       "typeVersion": 2,
       "credentials": {
         "notionApi": {
-          "id": "notion-credentials",
-          "name": "Notion API"
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
         }
       },
       "notes": "Retrieves full page content including title, summary, body, tool, category"
     },
     {
       "parameters": {
-        "jsCode": "console.log('Starting AI processing for page:', $json.properties.Title?.title?.[0]?.plain_text || 'Unknown');\nreturn $input.all();"
+        "jsCode": "console.log('🚀 Starting AI processing for page:', $json.properties.Title?.title?.[0]?.plain_text || 'Unknown');\nconsole.log('📄 Page ID:', $json.id);\nreturn $input.all();"
       },
       "id": "log-ai-start",
       "name": "Log AI Start",
@@ -55,16 +67,20 @@
     },
     {
       "parameters": {
-        "model": "gpt-4-turbo-preview",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4-turbo-preview"
+        },
         "messages": {
           "values": [
             {
               "role": "system",
-              "content": "You are a content writer specializing in beginner-friendly explanations. Rewrite and enhance the provided content to be more accessible, engaging, and comprehensive while maintaining the original meaning and structure."
+              "content": "You are a content writer specializing in beginner-friendly explanations. Rewrite and enhance the provided content to be more accessible, engaging, and comprehensive while maintaining the original meaning and structure. Focus on making complex topics easy to understand for newcomers."
             },
             {
               "role": "user",
-              "content": "Please rewrite and enhance this content for beginners:\n\nTitle: {{ $json.properties.Title?.title?.[0]?.plain_text || 'No title' }}\nSummary: {{ $json.properties.Summary?.rich_text?.[0]?.plain_text || 'No summary' }}\nBody: {{ $json.properties.Body?.rich_text?.[0]?.plain_text || 'No body content' }}\nTool: {{ $json.properties.Tool?.select?.name || 'No tool specified' }}\nCategory: {{ $json.properties.Category?.select?.name || 'No category specified' }}\n\nPlease provide a complete, beginner-friendly version that includes:\n1. An engaging introduction\n2. Clear explanations with examples\n3. Step-by-step instructions where applicable\n4. A helpful conclusion\n5. Proper formatting for web publication"
+              "content": "Please rewrite and enhance this content for beginners:\n\nTitle: {{ $json.properties.Title?.title?.[0]?.plain_text || 'No title' }}\nSummary: {{ $json.properties.Summary?.rich_text?.[0]?.plain_text || 'No summary' }}\nBody: {{ $json.properties.Body?.rich_text?.[0]?.plain_text || 'No body content' }}\nTool: {{ $json.properties.Tool?.select?.name || 'No tool specified' }}\nCategory: {{ $json.properties.Category?.select?.name || 'No category specified' }}\n\nPlease provide a complete, beginner-friendly version that includes:\n1. An engaging introduction that hooks the reader\n2. Clear explanations with practical examples\n3. Step-by-step instructions where applicable\n4. Visual cues and formatting for web publication\n5. A helpful conclusion with next steps\n6. Proper HTML formatting for web publication\n\nMake sure the content is comprehensive but easy to follow."
             }
           ]
         },
@@ -76,19 +92,19 @@
       "id": "ai-rewrite-chatgpt",
       "name": "AI Rewrite (ChatGPT)",
       "position": [800, 300],
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "credentials": {
         "openAiApi": {
-          "id": "openai-credentials",
-          "name": "OpenAI API"
+          "id": "huPV5N8waw1wiYCZ",
+          "name": "OpenAi account"
         }
       },
       "notes": "Uses GPT-4 Turbo to rewrite content for beginners"
     },
     {
       "parameters": {
-        "jsCode": "console.log('AI processing completed. Response length:', $json.choices?.[0]?.message?.content?.length || 0);\nreturn $input.all();"
+        "jsCode": "console.log('✅ AI processing completed. Response length:', $json.choices?.[0]?.message?.content?.length || 0);\nconsole.log('📝 AI Output preview:', $json.choices?.[0]?.message?.content?.substring(0, 100) + '...');\nreturn $input.all();"
       },
       "id": "log-ai-complete",
       "name": "Log AI Complete",
@@ -125,15 +141,21 @@
       "typeVersion": 2,
       "credentials": {
         "notionApi": {
-          "id": "notion-credentials",
-          "name": "Notion API"
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
         }
       },
       "notes": "Updates Notion page with AI output, sets AI Review to true, and changes status to Ready"
     },
     {
       "parameters": {
-        "databaseId": "={{ $env.NOTION_CONTENT_DB_ID }}",
+        "databaseId": {
+          "__rl": true,
+          "value": "285799f2-efe7-80e4-b704-ddb99840cedc",
+          "mode": "list",
+          "cachedResultName": "Content Pipeline",
+          "cachedResultUrl": "https://www.notion.so/285799f2efe780e4b704ddb99840cedc"
+        },
         "triggerOn": "pageUpdated",
         "additionalFields": {
           "filter": {
@@ -148,8 +170,14 @@
       "name": "Notion Trigger (Completed)",
       "position": [200, 600],
       "type": "n8n-nodes-base.notionTrigger",
-      "typeVersion": 2,
+      "typeVersion": 1,
       "webhookId": "notion-completed-webhook",
+      "credentials": {
+        "notionApi": {
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
+        }
+      },
       "notes": "Triggers when Notion page status changes to 'Completed'"
     },
     {
@@ -166,15 +194,15 @@
       "typeVersion": 2,
       "credentials": {
         "notionApi": {
-          "id": "notion-credentials",
-          "name": "Notion API"
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
         }
       },
       "notes": "Retrieves page details for Ghost publication"
     },
     {
       "parameters": {
-        "jsCode": "console.log('Starting Ghost publication for page:', $json.properties.Title?.title?.[0]?.plain_text || 'Unknown');\nreturn $input.all();"
+        "jsCode": "console.log('🌐 Starting Ghost publication for page:', $json.properties.Title?.title?.[0]?.plain_text || 'Unknown');\nconsole.log('📄 Page ID:', $json.id);\nreturn $input.all();"
       },
       "id": "log-ghost-start",
       "name": "Log Ghost Start",
@@ -221,7 +249,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $json;\nconst postUrl = response.posts?.[0]?.url || 'No URL returned';\nconsole.log('Ghost publication completed. Post URL:', postUrl);\nreturn [{\n  json: {\n    ...response,\n    postUrl: postUrl\n  }\n}];"
+        "jsCode": "const response = $json;\nconst postUrl = response.posts?.[0]?.url || 'No URL returned';\nconsole.log('✅ Ghost publication completed. Post URL:', postUrl);\nconsole.log('📊 Post ID:', response.posts?.[0]?.id || 'No ID');\nreturn [{\n  json: {\n    ...response,\n    postUrl: postUrl\n  }\n}];"
       },
       "id": "log-ghost-complete",
       "name": "Log Ghost Complete",
@@ -254,8 +282,8 @@
       "typeVersion": 2,
       "credentials": {
         "notionApi": {
-          "id": "notion-credentials",
-          "name": "Notion API"
+          "id": "Fco3vZMOQ5dlVE5R",
+          "name": "Notion account"
         }
       },
       "notes": "Updates Notion page with publication URL and sets status to Published"
@@ -267,7 +295,7 @@
       "typeVersion": 1,
       "position": [50, 50],
       "parameters": {
-        "content": "# Content Pipeline: Notion → OpenAI → Ghost\n\n## Overview\nAutomated content pipeline that processes Notion pages through AI enhancement and publishes to Ghost CMS.\n\n## Workflow Flow\n1. **Notion Trigger (In Progress)**: Detects when page status changes to 'In progress'\n2. **Get Page Details**: Retrieves full page content\n3. **AI Rewrite (ChatGPT)**: Enhances content using GPT-4 Turbo\n4. **Update Page (Set Ready)**: Updates Notion with AI output and sets status to 'Ready'\n5. **Notion Trigger (Completed)**: Detects when page status changes to 'Completed'\n6. **Post to Ghost**: Publishes content to Ghost CMS\n7. **Update Page (Published)**: Updates Notion with publication URL\n\n## Environment Variables Required\n- `NOTION_CONTENT_DB_ID`: Notion database ID\n- `GHOST_URL`: Ghost CMS URL\n- `GHOST_API_KEY`: Ghost Admin API key\n\n## Credentials Required\n- Notion API credentials\n- OpenAI API credentials\n\n## Status Flow\nIn progress → Ready → Completed → Published"
+        "content": "# Complete Content Pipeline: Notion → OpenAI → Ghost\n\n## 🎯 Overview\nAutomated content pipeline that processes Notion pages through AI enhancement and publishes to Ghost CMS.\n\n## 🔄 Workflow Flow\n1. **Notion Trigger (In Progress)**: Detects when page status changes to 'In progress'\n2. **Get Page Details**: Retrieves full page content\n3. **AI Rewrite (ChatGPT)**: Enhances content using GPT-4 Turbo\n4. **Update Page (Set Ready)**: Updates Notion with AI output and sets status to 'Ready'\n5. **Notion Trigger (Completed)**: Detects when page status changes to 'Completed'\n6. **Post to Ghost**: Publishes content to Ghost CMS\n7. **Update Page (Published)**: Updates Notion with publication URL\n\n## 🔐 Credentials Used\n- **Notion API**: Fco3vZMOQ5dlVE5R (Notion account)\n- **OpenAI API**: huPV5N8waw1wiYCZ (OpenAi account)\n- **Database ID**: 285799f2-efe7-80e4-b704-ddb99840cedc\n\n## 🌍 Environment Variables Required\n- `GHOST_URL`: Ghost CMS URL (e.g., https://your-site.com)\n- `GHOST_API_KEY`: Ghost Admin API key\n\n## 📊 Status Flow\n**In progress** → **Ready** → **Completed** → **Published**\n\n## 📝 Notion Database Fields\n- Title, Summary, Body, Tool, Category\n- Status, AI Output, AI Review, Publication URL\n\n## ✨ Features\n- Comprehensive logging with emojis\n- Error handling\n- Production-ready settings\n- Sequential execution order"
       }
     },
     {
@@ -415,14 +443,15 @@
     "openai",
     "ghost",
     "automation",
-    "cms"
+    "cms",
+    "production-ready"
   ],
   "triggerCount": 2,
   "updatedAt": "2024-01-15T10:00:00.000Z",
   "versionId": "1.0.0",
-  "id": "content-pipeline-workflow",
+  "id": "complete-content-pipeline-workflow",
   "meta": {
-    "instanceId": "content-pipeline-instance",
+    "instanceId": "complete-content-pipeline-instance",
     "versionId": "1.0.0",
     "createdAt": "2024-01-15T10:00:00.000Z",
     "updatedAt": "2024-01-15T10:00:00.000Z",
@@ -433,5 +462,5 @@
     "priority": "high",
     "environment": "production"
   },
-  "description": "Complete content pipeline workflow that automatically processes Notion pages through AI enhancement and publishes to Ghost CMS with proper status management and logging."
+  "description": "Complete content pipeline workflow using existing credentials that automatically processes Notion pages through AI enhancement and publishes to Ghost CMS with comprehensive logging and status management."
 }
