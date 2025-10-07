@@ -1,0 +1,257 @@
+{
+  "workflows": [
+    {
+      "name": "Content Pipeline - AI Processing",
+      "nodes": [
+        {
+          "parameters": {
+            "triggerOn": "update",
+            "databaseId": "{{ $env.NOTION_CONTENT_DB_ID }}"
+          },
+          "id": "1",
+          "name": "Notion Trigger (In Progress)",
+          "type": "n8n-nodes-base.notionTrigger",
+          "typeVersion": 1,
+          "position": [
+            200,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "operation": "get",
+            "pageId": "={{$json['id']}}"
+          },
+          "id": "2",
+          "name": "Get Page Details",
+          "type": "n8n-nodes-base.notion",
+          "typeVersion": 1,
+          "position": [
+            450,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "complete",
+            "model": "gpt-4-turbo-preview",
+            "temperature": 0.7,
+            "prompt": "Schrijf of herschrijf de onderstaande tekst op een heldere, toegankelijke manier voor beginners. Geef praktische voorbeelden en een duidelijke structuur.\n\nTITEL: {{$json['properties']['Titel']['title'][0]['plain_text']}}\n\nTEKST:\n{{$json['properties']['Inhoud (Body)']['rich_text'][0]['plain_text']}}"
+          },
+          "id": "3",
+          "name": "AI Rewrite (ChatGPT)",
+          "type": "n8n-nodes-base.openAi",
+          "typeVersion": 2,
+          "position": [
+            700,
+            300
+          ],
+          "credentials": {
+            "openAIApi": "OpenAI API"
+          }
+        },
+        {
+          "parameters": {
+            "operation": "update",
+            "pageId": "={{$json['id']}}",
+            "properties": {
+              "AI Output": {
+                "rich_text": [
+                  {
+                    "text": {
+                      "content": "={{$node['AI Rewrite (ChatGPT)'].json['text']}}"
+                    }
+                  }
+                ]
+              },
+              "AI Review": {
+                "checkbox": true
+              },
+              "Status": {
+                "select": {
+                  "name": "Ready"
+                }
+              }
+            }
+          },
+          "id": "4",
+          "name": "Update Page (Set Ready)",
+          "type": "n8n-nodes-base.notion",
+          "typeVersion": 1,
+          "position": [
+            950,
+            300
+          ]
+        }
+      ],
+      "connections": {
+        "Notion Trigger (In Progress)": {
+          "main": [
+            [
+              {
+                "node": "Get Page Details",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Page Details": {
+          "main": [
+            [
+              {
+                "node": "AI Rewrite (ChatGPT)",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "AI Rewrite (ChatGPT)": {
+          "main": [
+            [
+              {
+                "node": "Update Page (Set Ready)",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "sequential"
+      },
+      "tags": [
+        "content",
+        "notion",
+        "ai",
+        "ghost"
+      ]
+    },
+    {
+      "name": "Content Pipeline - Publish to Ghost",
+      "nodes": [
+        {
+          "parameters": {
+            "triggerOn": "update",
+            "databaseId": "{{ $env.NOTION_CONTENT_DB_ID }}"
+          },
+          "id": "1",
+          "name": "Notion Trigger (Completed)",
+          "type": "n8n-nodes-base.notionTrigger",
+          "typeVersion": 1,
+          "position": [
+            200,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "operation": "get",
+            "pageId": "={{$json['id']}}"
+          },
+          "id": "2",
+          "name": "Get Page Details",
+          "type": "n8n-nodes-base.notion",
+          "typeVersion": 1,
+          "position": [
+            450,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "authentication": "predefinedCredentialType",
+            "requestMethod": "POST",
+            "url": "https://YOUR_GHOST_URL/ghost/api/admin/posts/?source=html",
+            "jsonParameters": true,
+            "options": {},
+            "sendHeaders": true,
+            "headerParametersJson": "{\"Authorization\":\"Ghost YOUR_ADMIN_API_KEY\",\"Content-Type\":\"application/json\"}",
+            "bodyParametersJson": "={\"posts\":[{\"title\":\"{{$json['properties']['Titel']['title'][0]['plain_text']}}\",\"html\":\"{{$json['properties']['AI Output']['rich_text'][0]['plain_text']}}\",\"status\":\"published\",\"tags\":[\"{{$json['properties']['Categorie']['multi_select'][0]['name']}}\",\"{{$json['properties']['Tool']['select']['name']}}\"],\"custom_excerpt\":\"{{$json['properties']['Samenvatting (Excerpt)']['rich_text'][0]['plain_text']}}\"}]}"
+          },
+          "id": "3",
+          "name": "Post to Ghost",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            700,
+            300
+          ],
+          "credentials": {
+            "httpBasicAuth": "Ghost Admin"
+          }
+        },
+        {
+          "parameters": {
+            "operation": "update",
+            "pageId": "={{$json['id']}}",
+            "properties": {
+              "Status": {
+                "select": {
+                  "name": "Published"
+                }
+              },
+              "Publicatie-URL": {
+                "url": "={{$node['Post to Ghost'].json['posts'][0]['url']}}"
+              }
+            }
+          },
+          "id": "4",
+          "name": "Update Page (Published)",
+          "type": "n8n-nodes-base.notion",
+          "typeVersion": 1,
+          "position": [
+            950,
+            300
+          ]
+        }
+      ],
+      "connections": {
+        "Notion Trigger (Completed)": {
+          "main": [
+            [
+              {
+                "node": "Get Page Details",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Page Details": {
+          "main": [
+            [
+              {
+                "node": "Post to Ghost",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post to Ghost": {
+          "main": [
+            [
+              {
+                "node": "Update Page (Published)",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "sequential"
+      },
+      "tags": [
+        "content",
+        "notion",
+        "ghost",
+        "publish"
+      ]
+    }
+  ]
+}
