@@ -1,0 +1,352 @@
+{
+  "name": "Content Pipeline - AI Processing (Enhanced)",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "update",
+        "databaseId": "{{ $env.NOTION_CONTENT_DB_ID }}",
+        "filters": {
+          "property": "Status",
+          "select": {
+            "equals": "In Progress"
+          }
+        }
+      },
+      "id": "1",
+      "name": "Notion Trigger (In Progress)",
+      "type": "n8n-nodes-base.notionTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "pageId": "={{$json['id']}}"
+      },
+      "id": "2",
+      "name": "Get Page Details",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "title_check",
+              "leftValue": "={{$json['properties']['Titel']['title'][0]['plain_text']}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "content_check",
+              "leftValue": "={{$json['properties']['Inhoud (Body)']['rich_text'][0]['plain_text']}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Validate Content",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "mode": "complete",
+        "model": "gpt-4-turbo-preview",
+        "temperature": 0.7,
+        "maxTokens": 2000,
+        "prompt": "Schrijf of herschrijf de onderstaande tekst op een heldere, toegankelijke manier voor beginners. Geef praktische voorbeelden en een duidelijke structuur. Zorg ervoor dat de tekst minimaal 500 woorden bevat en goed gestructureerd is.\n\nTITEL: {{$json['properties']['Titel']['title'][0]['plain_text']}}\n\nTEKST:\n{{$json['properties']['Inhoud (Body)']['rich_text'][0]['plain_text']}}\n\nCategorie: {{$json['properties']['Categorie']['multi_select'][0]['name']}}\n\nTool: {{$json['properties']['Tool']['select']['name']}}"
+      },
+      "id": "4",
+      "name": "AI Rewrite (ChatGPT)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "openAIApi": "OpenAI API"
+      },
+      "retryOnFail": true,
+      "maxRetries": 3
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ai_output_check",
+              "leftValue": "={{$node['AI Rewrite (ChatGPT)'].json['text']}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "min_length_check",
+              "leftValue": "={{$node['AI Rewrite (ChatGPT)'].json['text'].length}}",
+              "rightValue": 500,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Validate AI Output",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "pageId": "={{$json['id']}}",
+        "properties": {
+          "AI Output": {
+            "rich_text": [
+              {
+                "text": {
+                  "content": "={{$node['AI Rewrite (ChatGPT)'].json['text']}}"
+                }
+              }
+            ]
+          },
+          "AI Review": {
+            "checkbox": true
+          },
+          "Status": {
+            "select": {
+              "name": "Ready"
+            }
+          },
+          "Processing Date": {
+            "date": {
+              "start": "={{new Date().toISOString()}}"
+            }
+          }
+        }
+      },
+      "id": "6",
+      "name": "Update Page (Set Ready)",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [1250, 100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "pageId": "={{$json['id']}}",
+        "properties": {
+          "Status": {
+            "select": {
+              "name": "Error"
+            }
+          },
+          "Error Message": {
+            "rich_text": [
+              {
+                "text": {
+                  "content": "Content validation failed - missing title or content"
+                }
+              }
+            ]
+          },
+          "Processing Date": {
+            "date": {
+              "start": "={{new Date().toISOString()}}"
+            }
+          }
+        }
+      },
+      "id": "7",
+      "name": "Update Page (Validation Error)",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "pageId": "={{$json['id']}}",
+        "properties": {
+          "Status": {
+            "select": {
+              "name": "Error"
+            }
+          },
+          "Error Message": {
+            "rich_text": [
+              {
+                "text": {
+                  "content": "AI processing failed - output too short or empty"
+                }
+              }
+            ]
+          },
+          "Processing Date": {
+            "date": {
+              "start": "={{new Date().toISOString()}}"
+            }
+          }
+        }
+      },
+      "id": "8",
+      "name": "Update Page (AI Error)",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.WEBHOOK_URL}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workflow",
+              "value": "AI Processing"
+            },
+            {
+              "name": "status",
+              "value": "error"
+            },
+            {
+              "name": "page_id",
+              "value": "={{$json['id']}}"
+            },
+            {
+              "name": "error_message",
+              "value": "={{$json['properties']['Error Message']['rich_text'][0]['plain_text']}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9",
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Notion Trigger (In Progress)": {
+      "main": [
+        [
+          {
+            "node": "Get Page Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Page Details": {
+      "main": [
+        [
+          {
+            "node": "Validate Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Content": {
+      "main": [
+        [
+          {
+            "node": "AI Rewrite (ChatGPT)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Page (Validation Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Rewrite (ChatGPT)": {
+      "main": [
+        [
+          {
+            "node": "Validate AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate AI Output": {
+      "main": [
+        [
+          {
+            "node": "Update Page (Set Ready)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Page (AI Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Page (AI Error)": {
+      "main": [
+        [
+          {
+            "node": "Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "sequential",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "content",
+    "notion",
+    "ai",
+    "enhanced"
+  ]
+}
